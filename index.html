@@ -980,6 +980,9 @@ async function saveEntry(sendSms){
   var btnSms=document.getElementById('saveBtnSms');
   btn.textContent='Saving...';btn.disabled=true;
   btnSms.textContent='Saving...';btnSms.disabled=true;
+  // PRINT TICKET PROTOTYPE: open blank window NOW (synchronous, before any await)
+  // so iOS Safari doesn't block it as a popup after the async save.
+  var _ptWin = typeof ptOpenBlankWindow === 'function' ? ptOpenBlankWindow() : null;
   try{
     var ts=new Date().toLocaleString('en-US');
     var phoneFull=document.getElementById('fPhone').value.trim();
@@ -995,7 +998,7 @@ async function saveEntry(sendSms){
     else { finalDate=d2us(getReturnDate()); }
     var locVal=document.getElementById('fLoc').value;
 
-    await sbInsert({
+    var _ptRec = await sbInsert({
       ts: ts,
       name: name.toUpperCase(),
       phone: phoneFull,
@@ -1010,6 +1013,11 @@ async function saveEntry(sendSms){
       deldate: ''
     });
     sbLog('CHECK-IN', name.toUpperCase(), ticket, locVal, finalStatus+(finalDate?' · Returns '+finalDate:''));
+    // PRINT TICKET PROTOTYPE: fill the pre-opened blank window with ticket content
+    if (_ptWin && typeof ptWriteTicketToWindow === 'function') {
+      var _inserted = Array.isArray(_ptRec) ? _ptRec[0] : _ptRec;
+      if (_inserted) ptWriteTicketToWindow(_ptWin, _inserted);
+    }
 
     closeAll();
     document.getElementById('fName').value='';
@@ -1032,6 +1040,8 @@ async function saveEntry(sendSms){
     }
     await loadData();
   }catch(e){
+    // PRINT TICKET PROTOTYPE: close the blank window if save failed
+    if (_ptWin) { try { _ptWin.close(); } catch(ex) {} _ptWin = null; }
     showMsg('❌ Error: '+e.message, true);
     console.error(e);
   }finally{

@@ -466,19 +466,9 @@
     ].join('\n');
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // openTicketPrintWindow(recordId)
-  // Opens a print window showing BOTH tickets (customer + key copy).
-  // This is the primary entry point called from the detail panel button.
-  // ────────────────────────────────────────────────────────────────────────────
-  window.openTicketPrintWindow = function (recordId) {
-    var r = _findRecord(recordId);
-    if (!r) { alert('Record not found.'); return; }
-
-    var ticketNum = escapeHTML(r.ticket || '');
-    var paxName   = escapeHTML(r.name   || '');
-
-    // Wrap each ticket so solo-print CSS selectors can target them.
+  // ── HELPER: Shared two-ticket document parts ────────────────────────────────
+  // Used by openTicketPrintWindow AND ptWriteTicketToWindow to avoid duplication.
+  function _buildBothTicketsDoc(r) {
     var bodyContent = [
       '<div id="pt-customer-wrap">' + buildCustomerTicketHTML(r) + '</div>',
       '<div class="cut-separator no-print">- - - - - - - ✂ - - - - - - -</div>',
@@ -486,7 +476,7 @@
     ].join('\n');
 
     // ptPrint(mode): adds body class so @media print hides the other ticket,
-    // calls window.print(), then restores via afterprint (with setTimeout fallback).
+    // then restores via afterprint (with setTimeout fallback for older iOS).
     var ptScript = [
       'function ptPrint(mode) {',
       '  if (mode) document.body.classList.add(mode);',
@@ -510,14 +500,57 @@
       '  <button class="pb-btn pb-print" onclick="ptPrint()">PRINT BOTH TICKETS</button>'
     ].join('\n');
 
-    var html = _buildDocument(
-      'Ticket #' + ticketNum + ' - ' + paxName,
-      bodyContent,
-      buttonsHTML,
-      ptScript
-    );
+    return { bodyContent: bodyContent, buttonsHTML: buttonsHTML, ptScript: ptScript };
+  }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // openTicketPrintWindow(recordId)
+  // Opens a print window showing BOTH tickets. Called from the detail panel.
+  // ────────────────────────────────────────────────────────────────────────────
+  window.openTicketPrintWindow = function (recordId) {
+    var r = _findRecord(recordId);
+    if (!r) { alert('Record not found.'); return; }
+    var d = _buildBothTicketsDoc(r);
+    var html = _buildDocument(
+      'Ticket #' + escapeHTML(r.ticket || '') + ' - ' + escapeHTML(r.name || ''),
+      d.bodyContent, d.buttonsHTML, d.ptScript
+    );
     _openWindow(html, 'pt_both_' + recordId);
+  };
+
+  // ── AUTO-PRINT HOOKS (called from saveEntry in index.html) ───────────────────
+  // iOS Safari blocks window.open() after an await. Solution: open a blank
+  // window synchronously FIRST (ptOpenBlankWindow), then fill it with ticket
+  // content after the async save completes (ptWriteTicketToWindow).
+
+  window.ptOpenBlankWindow = function () {
+    var win = window.open('', 'pt_new_' + Date.now(), 'width=420,height=720');
+    if (!win) win = window.open('about:blank', '_blank');
+    if (win) {
+      win.document.write(
+        '<!DOCTYPE html><html><head>' +
+        '<meta charset="UTF-8">' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<style>body{background:#c8cdd8;font-family:"Courier New",Courier,monospace;' +
+        'display:flex;align-items:center;justify-content:center;height:100vh;' +
+        'margin:0;color:#1B3B6F;font-size:13px;letter-spacing:2px;}</style>' +
+        '</head><body>PREPARING TICKET...</body></html>'
+      );
+      win.document.close();
+    }
+    return win || null;
+  };
+
+  window.ptWriteTicketToWindow = function (win, record) {
+    if (!win || !record) return;
+    var d = _buildBothTicketsDoc(record);
+    var html = _buildDocument(
+      'Ticket #' + escapeHTML(record.ticket || '') + ' - ' + escapeHTML(record.name || ''),
+      d.bodyContent, d.buttonsHTML, d.ptScript
+    );
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
   };
 
   // ────────────────────────────────────────────────────────────────────────────
