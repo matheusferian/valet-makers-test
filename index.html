@@ -269,7 +269,7 @@
     </div>
     <div id="erWarn" class="er-warn" style="display:none;">⚠️ HEADS UP: This passenger had an Early Return before. Confirm the return date carefully.</div>
     <div class="fr two">
-      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder=""></div>
+      <div class="fg"><label>Ticket # <span style="color:var(--red)">*</span></label><input type="text" id="fTicket" inputmode="numeric" pattern="[0-9]*" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder=""><span style="font-size:10px;color:var(--mu);margin-top:3px;">Auto-generated. Can be manually adjusted if needed.</span></div>
       <div class="fg"><label>Return Date <span style="color:var(--red)" id="retRequired">*</span></label>
         <input type="date" id="fReturn" style="width:100%;background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:11px 14px;font-size:16px;color:var(--tx);outline:none;font-family:'Syne',sans-serif;box-sizing:border-box;">
       </div>
@@ -933,12 +933,33 @@ function updateVcf(){
 }
 
 // ── OPEN / CLOSE MODAL ─────────────────────────────────────────
+// ── TICKET NUMBER HELPERS ──────────────────────────────────────────────────
+// Isolated — safe to remove. Uses global data[] array only.
+function isNumericTicket(v) {
+  return !!v && /^\d+$/.test(String(v).trim());
+}
+function formatTicketNumber(num) {
+  var s = String(num);
+  while (s.length < 4) s = '0' + s;
+  return s;
+}
+function getNextTicketNumber() {
+  var max = 0;
+  for (var i = 0; i < data.length; i++) {
+    if (isNumericTicket(data[i].ticket)) {
+      var n = parseInt(data[i].ticket, 10);
+      if (n > max) max = n;
+    }
+  }
+  return formatTicketNumber(max + 1);
+}
+
 function openAdd(){
   document.getElementById('modalTitle').textContent='New Entry';
   document.getElementById('modalSub').textContent='Add a new passenger';
   document.getElementById('fName').value='';
   document.getElementById('fPhone').value='';
-  document.getElementById('fTicket').value='';
+  document.getElementById('fTicket').value=getNextTicketNumber();
   var fRet=document.getElementById('fReturn'); if(fRet) fRet.value='';
   document.getElementById('fCar').value='';
   document.getElementById('fColor').value='';
@@ -961,6 +982,7 @@ document.querySelectorAll('.ov').forEach(function(o){o.addEventListener('click',
 async function saveEntry(sendSms){
   var name=document.getElementById('fName').value.trim();
   var ticket=document.getElementById('fTicket').value.trim();
+  if(!ticket){ticket=getNextTicketNumber();document.getElementById('fTicket').value=ticket;}
   if(!name||!ticket){alert('Name and Ticket required.');return;}
   var status0=document.getElementById('fStatus').value;
   var retVal=document.getElementById('fReturn').value;
